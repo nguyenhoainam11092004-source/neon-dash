@@ -1,0 +1,172 @@
+/*
+ * Page chrome only. Everything inside the game is drawn by Phaser; the DOM here
+ * exists to host the canvas, show a splash before the bundle boots, and report
+ * a fatal error if it never does.
+ */
+
+:root {
+  --nd-bg-deep: #080312;
+  --nd-bg-mid: #120a24;
+  --nd-cyan: #2ff3f0;
+  --nd-magenta: #ff2fa8;
+  --nd-violet: #9b5cff;
+  --nd-white: #f2f6ff;
+  --nd-grey: #6b7394;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--nd-bg-deep);
+  color: var(--nd-white);
+  font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  /* A rhythm game must not fire the browser's tap-to-zoom or text selection. */
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+#game-root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game-root canvas {
+  display: block;
+  /* Sits above the page background but below any DOM overlay the editor adds. */
+  touch-action: none;
+}
+
+/* ---------- Boot splash ---------- */
+
+#boot-splash {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: radial-gradient(circle at 50% 45%, var(--nd-bg-mid) 0%, var(--nd-bg-deep) 70%);
+  z-index: 10;
+  transition: opacity 320ms ease;
+}
+
+#boot-splash.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.boot-splash__mark {
+  font-size: clamp(28px, 7vw, 58px);
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: var(--nd-cyan);
+  text-shadow: 0 0 18px rgba(47, 243, 240, 0.55);
+}
+
+.boot-splash__mark span {
+  color: var(--nd-magenta);
+  text-shadow: 0 0 18px rgba(255, 47, 168, 0.55);
+  margin-left: 0.22em;
+}
+
+.boot-splash__bar {
+  width: min(320px, 62vw);
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(155, 92, 255, 0.22);
+  overflow: hidden;
+}
+
+.boot-splash__bar i {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--nd-cyan), var(--nd-magenta));
+  animation: nd-sweep 1.15s ease-in-out infinite;
+}
+
+@keyframes nd-sweep {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-splash__bar i {
+    animation: none;
+    width: 100%;
+  }
+}
+
+.boot-splash__hint {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--nd-grey);
+}
+
+/* ---------- Fatal error / noscript ---------- */
+
+.fatal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  background: var(--nd-bg-deep);
+  z-index: 20;
+}
+
+.fatal h1 {
+  margin: 0;
+  font-size: clamp(20px, 4vw, 30px);
+  color: var(--nd-magenta);
+  letter-spacing: 0.08em;
+}
+
+.fatal p {
+  margin: 0;
+  max-width: 46ch;
+  line-height: 1.55;
+  color: var(--nd-grey);
+  font-size: 14px;
+}
+
+.fatal pre {
+  max-width: min(90vw, 720px);
+  max-height: 40vh;
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 47, 168, 0.25);
+  color: var(--nd-white);
+  font-size: 12px;
+  text-align: left;
+  white-space: pre-wrap;
+}

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+.tools/
+*.local
+.DS_Store
+Thumbs.db
+.vite/
+.idea/
+*.log
+npm-debug.log*
+.env
+.env.*
+!.env.example

@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "levels": [
+    {
+      "id": "nd_01_first_light",
+      "name": "First Light",
+      "difficulty": "Easy",
+      "file": "levels/nd_01_first_light.json",
+      "song": "song_pulse",
+      "bpm": 128,
+      "duration": 46,
+      "order": 0
+    },
+    {
+      "id": "nd_02_neon_road",
+      "name": "Neon Road",
+      "difficulty": "Easy",
+      "file": "levels/nd_02_neon_road.json",
+      "song": "song_neon_drift",
+      "bpm": 120,
+      "duration": 48,
+      "order": 1
+    },
+    {
+      "id": "nd_03_sky_circuit",
+      "name": "Sky Circuit",
+      "difficulty": "Normal",
+      "file": "levels/nd_03_sky_circuit.json",
+      "song": "song_circuit",
+      "bpm": 140,
+      "duration": 44,
+      "order": 2
+    },
+    {
+      "id": "nd_04_inversion",
+      "name": "Inversion",
+      "difficulty": "Normal",
+      "file": "levels/nd_04_inversion.json",
+      "song": "song_low_orbit",
+      "bpm": 124,
+      "duration": 49,
+      "order": 3
+    },
+    {
+      "id": "nd_05_rolling_steel",
+      "name": "Rolling Steel",
+      "difficulty": "Hard",
+      "file": "levels/nd_05_rolling_steel.json",
+      "song": "song_terminal",
+      "bpm": 132,
+      "duration": 45,
+      "order": 4
+    },
+    {
+      "id": "nd_06_glass_ceiling",
+      "name": "Glass Ceiling",
+      "difficulty": "Hard",
+      "file": "levels/nd_06_glass_ceiling.json",
+      "song": "song_glass_rain",
+      "bpm": 112,
+      "duration": 55,
+      "order": 5
+    },
+    {
+      "id": "nd_07_hairline",
+      "name": "Hairline",
+      "difficulty": "Harder",
+      "file": "levels/nd_07_hairline.json",
+      "song": "song_fracture",
+      "bpm": 145,
+      "duration": 45,
+      "order": 6
+    },
+    {
+      "id": "nd_08_heavy_machinery",
+      "name": "Heavy Machinery",
+      "difficulty": "Harder",
+      "file": "levels/nd_08_heavy_machinery.json",
+      "song": "song_afterburn",
+      "bpm": 150,
+      "duration": 45,
+      "order": 7
+    },
+    {
+      "id": "nd_09_pendulum",
+      "name": "Pendulum",
+      "difficulty": "Insane",
+      "file": "levels/nd_09_pendulum.json",
+      "song": "song_overdrive",
+      "bpm": 160,
+      "duration": 47,
+      "order": 8
+    },
+    {
+      "id": "nd_10_terminal_velocity",
+      "name": "Terminal Velocity",
+      "difficulty": "Insane",
+      "file": "levels/nd_10_terminal_velocity.json",
+      "song": "song_hyperline",
+      "bpm": 170,
+      "duration": 50,
+      "order": 9
+    }
+  ]
+}
