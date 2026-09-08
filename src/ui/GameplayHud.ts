@@ -3,7 +3,7 @@ import { DEPTH, PALETTE, VIEW } from '@/config/constants';
 import { TEX } from '@/effects/TextureFactory';
 import { formatPercent } from '@/utils/TimeUtils';
 import { Button } from './Button';
-import { FONT_STACK, RADIUS, SPACING, TYPE, UI_COLORS, hex, track } from './Theme';
+import { FONT_STACK, SPACING, TYPE, UI_COLORS, hex, pillRadius, track } from './Theme';
 import { ProgressBar } from './ProgressBar';
 
 export interface HudOptions {
@@ -146,9 +146,9 @@ export class GameplayHud {
 
     const background = this.scene.add.graphics();
     background.fillStyle(PALETTE.LIME, 0.16);
-    background.fillRoundedRect(-140, -16, 280, 32, RADIUS.pill);
+    background.fillRoundedRect(-140, -16, 280, 32, pillRadius(280, 32));
     background.lineStyle(1.5, PALETTE.LIME, 0.7);
-    background.strokeRoundedRect(-140, -16, 280, 32, RADIUS.pill);
+    background.strokeRoundedRect(-140, -16, 280, 32, pillRadius(280, 32));
 
     const label = this.scene.add
       .text(0, 0, 'PRACTICE   Z ADD CP   X REMOVE CP', {

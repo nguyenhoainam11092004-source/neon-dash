@@ -4,6 +4,21 @@ import { TEX } from '@/effects/TextureFactory';
 import type { GameModeId } from '@/types/LevelTypes';
 import type { PlayerCustomization, PlayerState } from '@/types/PlayerTypes';
 import { parseHexColor } from '@/utils/MathUtils';
+import { getPlayerShape } from './PlayerShapes';
+
+/**
+ * Bloom footprint behind the player, measured in player-body widths.
+ *
+ * Deliberately tight. The glow texture is a soft radial blob, but past roughly
+ * two body widths it stops reading as light coming off the shape and starts
+ * reading as a separate disc parked behind it.
+ */
+const GLOW_WIDTHS = 1.9;
+/** Extra footprint at full vertical speed. */
+const GLOW_SPEED_WIDTHS = 0.45;
+const GLOW_ALPHA = 0.3;
+/** Extra opacity at full vertical speed, so a fast fall reads as dangerous. */
+const GLOW_SPEED_ALPHA = 0.22;
 
 /**
  * Draws the player.
@@ -19,9 +34,14 @@ export class PlayerVisual {
   private readonly body: Phaser.GameObjects.Graphics;
   private readonly glow: Phaser.GameObjects.Image;
   private readonly hitbox: Phaser.GameObjects.Graphics;
+  /** Texture scale that makes the glow exactly one player-body wide, so the
+   * bloom above can be specified in body widths rather than texture pixels. */
+  private readonly glowUnit: number;
 
   private primary: number = PALETTE.CYAN;
   private secondary: number = PALETTE.MAGENTA;
+  /** Id of the equipped shape; see PlayerShapes. */
+  private shape = 'classic';
   private currentMode: GameModeId = 'cube';
   private showHitbox = false;
 
@@ -33,11 +53,9 @@ export class PlayerVisual {
   constructor(scene: Phaser.Scene, customization?: PlayerCustomization) {
     this.scene = scene;
 
-    this.glow = scene.add
-      .image(0, 0, TEX.GLOW)
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setScale(0.9)
-      .setAlpha(0.55);
+    this.glow = scene.add.image(0, 0, TEX.GLOW).setBlendMode(Phaser.BlendModes.ADD);
+    this.glowUnit = PHYSICS.PLAYER_SIZE / (this.glow.width || PHYSICS.PLAYER_SIZE);
+    this.glow.setScale(this.glowUnit * GLOW_WIDTHS).setAlpha(GLOW_ALPHA);
 
     this.body = scene.add.graphics();
     this.hitbox = scene.add.graphics().setVisible(false);
@@ -53,6 +71,7 @@ export class PlayerVisual {
   applyCustomization(customization: PlayerCustomization): void {
     this.primary = parseHexColor(customization.primaryColor) ?? PALETTE.CYAN;
     this.secondary = parseHexColor(customization.secondaryColor) ?? PALETTE.MAGENTA;
+    this.shape = customization.skin;
     this.glow.setTint(this.primary);
     this.redraw();
   }
@@ -91,12 +110,11 @@ export class PlayerVisual {
     switch (this.currentMode) {
       case 'cube':
       case 'robot': {
-        g.fillStyle(this.primary, 1);
-        g.fillRoundedRect(-half, -half, size, size, 6);
-        g.fillStyle(this.secondary, 1);
-        g.fillRoundedRect(-half * 0.45, -half * 0.45, size * 0.45, size * 0.45, 3);
-        g.lineStyle(2.5, PALETTE.WHITE, 0.85);
-        g.strokeRoundedRect(-half, -half, size, size, 6);
+        // The block forms are the ones that carry the player's chosen shape.
+        // The flying modes below keep their fixed silhouettes because those
+        // shapes tell the player which mode they are in, which is information
+        // a cosmetic must not be able to hide.
+        getPlayerShape(this.shape).draw(g, this.primary, this.secondary, size);
         break;
       }
 
@@ -186,8 +204,8 @@ export class PlayerVisual {
 
     // The glow brightens with vertical speed, so a fast fall reads as dangerous.
     const speedFactor = Math.min(1, Math.abs(state.velocity.y) / 1200);
-    this.glow.setAlpha(0.4 + speedFactor * 0.35);
-    this.glow.setScale(0.85 + speedFactor * 0.25);
+    this.glow.setAlpha(GLOW_ALPHA + speedFactor * GLOW_SPEED_ALPHA);
+    this.glow.setScale(this.glowUnit * (GLOW_WIDTHS + speedFactor * GLOW_SPEED_WIDTHS));
 
     if (this.showHitbox) {
       const half = (state.mini ? PHYSICS.PLAYER_SIZE * 0.6 : PHYSICS.PLAYER_SIZE) / 2;

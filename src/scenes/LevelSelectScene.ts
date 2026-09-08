@@ -7,6 +7,7 @@ import { levelManager, type LevelListing } from '@/levels/LevelManager';
 import { levelLoader } from '@/levels/LevelLoader';
 import type { SaveManager } from '@/save/SaveManager';
 import { Button } from '@/ui/Button';
+import { containerHitArea } from '@/ui/HitArea';
 import { FONT_STACK, RADIUS, SPACING, TYPE, UI_COLORS, hex, track } from '@/ui/Theme';
 import { Toast } from '@/ui/Toast';
 import { formatPercent } from '@/utils/TimeUtils';
@@ -235,7 +236,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
     card.setSize(width, height);
     card.setInteractive(
-      new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height),
+      containerHitArea(card, -width / 2, -height / 2, width, height),
       Phaser.Geom.Rectangle.Contains,
     );
 

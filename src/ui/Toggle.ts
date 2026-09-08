@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PALETTE } from '@/config/constants';
-import { FONT_STACK, RADIUS, TYPE, UI_COLORS, hex } from './Theme';
+import { FONT_STACK, TYPE, UI_COLORS, hex, pillRadius } from './Theme';
+import { containerHitArea } from './HitArea';
 
 export interface ToggleOptions {
   label: string;
@@ -54,7 +55,7 @@ export class Toggle extends Phaser.GameObjects.Container {
 
     this.setSize(this.opts.width, 34);
     this.setInteractive(
-      new Phaser.Geom.Rectangle(0, -17, this.opts.width, 34),
+      containerHitArea(this, 0, -17, this.opts.width, 34),
       Phaser.Geom.Rectangle.Contains,
     );
 
@@ -104,18 +105,20 @@ export class Toggle extends Phaser.GameObjects.Container {
     const x = this.opts.width - trackWidth;
     const y = -trackHeight / 2;
     const color = this.opts.color;
+    const radius = pillRadius(trackWidth, trackHeight);
 
     this.graphics.clear();
 
     if (this.hovered) {
       this.graphics.lineStyle(8, color, 0.14);
-      this.graphics.strokeRoundedRect(x - 3, y - 3, trackWidth + 6, trackHeight + 6, RADIUS.pill);
+      const glowRadius = pillRadius(trackWidth + 6, trackHeight + 6);
+      this.graphics.strokeRoundedRect(x - 3, y - 3, trackWidth + 6, trackHeight + 6, glowRadius);
     }
 
     this.graphics.fillStyle(this.current ? color : UI_COLORS.panel, this.current ? 0.85 : 0.95);
-    this.graphics.fillRoundedRect(x, y, trackWidth, trackHeight, RADIUS.pill);
+    this.graphics.fillRoundedRect(x, y, trackWidth, trackHeight, radius);
     this.graphics.lineStyle(2, this.current ? color : UI_COLORS.textMuted, this.current ? 1 : 0.5);
-    this.graphics.strokeRoundedRect(x, y, trackWidth, trackHeight, RADIUS.pill);
+    this.graphics.strokeRoundedRect(x, y, trackWidth, trackHeight, radius);
 
     const travel = trackWidth - trackHeight;
     const knobX = x + trackHeight / 2 + travel * this.knob;

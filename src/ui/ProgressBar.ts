@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { clamp01, damp } from '@/utils/MathUtils';
-import { FONT_STACK, RADIUS, TYPE, UI_COLORS, hex } from './Theme';
+import { FONT_STACK, TYPE, UI_COLORS, hex, pillRadius } from './Theme';
 
 export interface ProgressBarOptions {
   width?: number;
@@ -110,7 +110,7 @@ export class ProgressBar extends Phaser.GameObjects.Container {
     const { width, height, color, trackColor } = this.opts;
     const x = -width / 2;
     const y = -height / 2;
-    const radius = Math.min(RADIUS.pill, height / 2);
+    const radius = pillRadius(width, height);
 
     this.graphics.clear();
 
@@ -121,7 +121,7 @@ export class ProgressBar extends Phaser.GameObjects.Container {
     if (fillWidth > 1) {
       // Clip the fill to the track's rounded ends so a short bar keeps the pill
       // shape rather than showing a square edge.
-      const fillRadius = Math.min(radius, fillWidth / 2);
+      const fillRadius = pillRadius(fillWidth, height);
       this.graphics.fillStyle(color, 0.95);
       this.graphics.fillRoundedRect(x, y, fillWidth, height, fillRadius);
 

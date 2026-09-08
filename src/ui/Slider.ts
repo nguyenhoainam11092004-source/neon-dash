@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { PALETTE } from '@/config/constants';
 import { clamp01 } from '@/utils/MathUtils';
-import { FONT_STACK, RADIUS, TYPE, UI_COLORS, hex } from './Theme';
+import { FONT_STACK, TYPE, UI_COLORS, hex, pillRadius } from './Theme';
+import { containerHitArea } from './HitArea';
 
 export interface SliderOptions {
   label: string;
@@ -69,10 +70,13 @@ export class Slider extends Phaser.GameObjects.Container {
 
     this.add([this.graphics, this.labelText, this.valueText]);
 
-    const hitHeight = 30;
+    const hitHeight = 34;
+    // A little slack past each end of the track, so the handle is still
+    // grabbable when it sits at 0% or 100% and half of it overhangs.
+    const hitPadX = 14;
     this.setSize(this.opts.width, hitHeight);
     this.setInteractive(
-      new Phaser.Geom.Rectangle(0, -hitHeight / 2 + 8, this.opts.width, hitHeight),
+      containerHitArea(this, -hitPadX, 8 - hitHeight / 2, this.opts.width + hitPadX * 2, hitHeight),
       Phaser.Geom.Rectangle.Contains,
     );
 
@@ -151,12 +155,18 @@ export class Slider extends Phaser.GameObjects.Container {
     this.graphics.clear();
 
     this.graphics.fillStyle(UI_COLORS.panel, 0.9);
-    this.graphics.fillRoundedRect(0, y, width, trackHeight, RADIUS.pill);
+    this.graphics.fillRoundedRect(0, y, width, trackHeight, pillRadius(width, trackHeight));
 
     const fillWidth = width * this.current;
     if (fillWidth > 1) {
       this.graphics.fillStyle(color, 0.95);
-      this.graphics.fillRoundedRect(0, y, fillWidth, trackHeight, RADIUS.pill);
+      this.graphics.fillRoundedRect(
+        0,
+        y,
+        fillWidth,
+        trackHeight,
+        pillRadius(fillWidth, trackHeight),
+      );
     }
 
     const handleX = fillWidth;

@@ -83,3 +83,14 @@ export function track(text: string, amount: number): string {
   const gap = amount >= 8 ? '  ' : ' ';
   return text.split('').join(gap);
 }
+
+/**
+ * Corner radius for a pill-shaped rect, clamped to what the rect can hold.
+ *
+ * Phaser's fill/strokeRoundedRect does not clamp: handing it RADIUS.pill for a
+ * 6px-tall slider track makes it sweep 999px arcs, which streak right across
+ * the screen. Every pill must derive its radius from its own size.
+ */
+export function pillRadius(width: number, height: number): number {
+  return Math.max(0, Math.min(RADIUS.pill, Math.min(width, height) / 2));
+}

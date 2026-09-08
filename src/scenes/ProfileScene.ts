@@ -6,6 +6,7 @@ import { TEX } from '@/effects/TextureFactory';
 import { levelManager } from '@/levels/LevelManager';
 import { ProgressManager } from '@/progression/ProgressManager';
 import type { CosmeticDefinition } from '@/progression/InventoryManager';
+import { getPlayerShape } from '@/player/PlayerShapes';
 import type { SaveManager } from '@/save/SaveManager';
 import { Button } from '@/ui/Button';
 import { ProgressBar } from '@/ui/ProgressBar';
@@ -309,27 +310,24 @@ export class ProfileScene extends Phaser.Scene {
 
   private renderCustomize(): void {
     const inventory = this.progression.inventory;
-    const top = 168;
-
-    // A live preview of the equipped colours.
     const equipped = inventory.equipped;
-    const preview = this.add.graphics();
     const primary = parseHexColor(equipped.primaryColor) ?? PALETTE.CYAN;
     const secondary = parseHexColor(equipped.secondaryColor) ?? PALETTE.MAGENTA;
-    preview.fillStyle(primary, 1);
-    preview.fillRoundedRect(VIEW.WIDTH / 2 - 28, top - 6, 56, 56, 8);
-    preview.fillStyle(secondary, 1);
-    preview.fillRoundedRect(VIEW.WIDTH / 2 - 12, top + 10, 24, 24, 4);
-    preview.lineStyle(3, PALETTE.WHITE, 0.85);
-    preview.strokeRoundedRect(VIEW.WIDTH / 2 - 28, top - 6, 56, 56, 8);
+    const top = 142;
+
+    // The preview is drawn by the same code the game uses, so what is shown
+    // here is exactly what appears in a level rather than an approximation
+    // that can drift out of step with it.
+    const preview = this.add.graphics().setPosition(VIEW.WIDTH / 2, top + 24);
+    getPlayerShape(equipped.skin).draw(preview, primary, secondary, 58);
     this.content.add(preview);
 
-    let y = top + 76;
-
-    y = this.renderCosmeticRow('PRIMARY COLOUR', inventory.byKind('color'), y, (item) =>
+    let y = top + 82;
+    y = this.renderShapeRow(inventory.byKind('skin'), equipped.skin, y);
+    y = this.renderSwatchRow('PRIMARY COLOUR', inventory.byKind('color'), primary, y, (item) =>
       this.equip(item, 'primary'),
     );
-    y = this.renderCosmeticRow('SECONDARY COLOUR', inventory.byKind('color'), y, (item) =>
+    y = this.renderSwatchRow('SECONDARY COLOUR', inventory.byKind('color'), secondary, y, (item) =>
       this.equip(item, 'secondary'),
     );
     y = this.renderCosmeticRow('TRAIL', inventory.byKind('trail'), y, (item) => this.equip(item));
@@ -338,13 +336,7 @@ export class ProfileScene extends Phaser.Scene {
     );
   }
 
-  /** Draws one labelled row of cosmetic chips and returns the next y. */
-  private renderCosmeticRow(
-    label: string,
-    items: CosmeticDefinition[],
-    y: number,
-    onPick: (item: CosmeticDefinition) => void,
-  ): number {
+  private rowLabel(label: string, y: number): void {
     this.content.add(
       this.add
         .text(SPACING.xl, y, label, {
@@ -355,10 +347,130 @@ export class ProfileScene extends Phaser.Scene {
         })
         .setOrigin(0, 0.5),
     );
+  }
+
+  /**
+   * A row of shape choices, each drawn as the shape itself.
+   *
+   * Names alone would make the player equip something to find out what it is,
+   * which is the one thing a cosmetic screen has to avoid.
+   */
+  private renderShapeRow(items: CosmeticDefinition[], equippedId: string, y: number): number {
+    this.rowLabel('SHAPE', y);
+
+    const chip = 64;
+    const gap = 10;
+    const rowY = y + 52;
+    const inventory = this.progression.inventory;
+
+    items.forEach((item, index) => {
+      const x = SPACING.xl + chip / 2 + index * (chip + gap);
+      const shapeId = item.id.split(':')[1] ?? 'classic';
+      const owned = inventory.owns(item.id);
+      const isEquipped = shapeId === equippedId;
+
+      this.content.add(
+        new Button(this, x, rowY, {
+          label: '',
+          width: chip,
+          height: chip,
+          color: isEquipped ? PALETTE.CYAN : owned ? PALETTE.VIOLET : UI_COLORS.textMuted,
+          variant: isEquipped ? 'solid' : 'ghost',
+          onClick: () => this.equip(item),
+        }),
+      );
+
+      // Drawn after the chip so it sits on top; a Graphics is not interactive,
+      // so it cannot swallow the chip's own clicks.
+      const preview = this.add.graphics().setPosition(x, rowY - 6);
+      getPlayerShape(shapeId).draw(
+        preview,
+        owned ? PALETTE.CYAN : UI_COLORS.textMuted,
+        owned ? PALETTE.MAGENTA : UI_COLORS.panel,
+        30,
+      );
+      preview.setAlpha(owned ? 1 : 0.45);
+      this.content.add(preview);
+
+      this.content.add(
+        this.add
+          .text(x, rowY + 22, owned ? item.name.toUpperCase() : `${item.price}`, {
+            fontFamily: FONT_STACK,
+            fontSize: '9px',
+            fontStyle: '700',
+            color: hex(owned ? UI_COLORS.text : PALETTE.AMBER),
+          })
+          .setOrigin(0.5),
+      );
+    });
+
+    return y + 108;
+  }
+
+  /**
+   * A row of colour swatches.
+   *
+   * Swatches rather than named chips because the palette is long: a name-width
+   * chip per colour would run off the screen, and the previous layout silently
+   * dropped every entry that did not fit.
+   */
+  private renderSwatchRow(
+    label: string,
+    items: CosmeticDefinition[],
+    equipped: number,
+    y: number,
+    onPick: (item: CosmeticDefinition) => void,
+  ): number {
+    this.rowLabel(label, y);
+
+    const swatch = 38;
+    const gap = 7;
+    const startX = SPACING.xl + 220;
+    const inventory = this.progression.inventory;
+
+    items.forEach((item, index) => {
+      const x = startX + swatch / 2 + index * (swatch + gap);
+      const owned = inventory.owns(item.id);
+      const color = item.value ? (parseHexColor(item.value) ?? PALETTE.CYAN) : PALETTE.VIOLET;
+
+      this.content.add(
+        new Button(this, x, y, {
+          label: owned ? '' : `${item.price}`,
+          width: swatch,
+          height: swatch,
+          color,
+          variant: owned ? 'solid' : 'ghost',
+          fontSize: 10,
+          tracking: 0,
+          onClick: () => onPick(item),
+        }),
+      );
+
+      // A tick on the swatch currently in this slot, so the two colour rows
+      // are readable at a glance without reading any text.
+      if (owned && color === equipped) {
+        const mark = this.add.graphics();
+        mark.lineStyle(2.5, PALETTE.WHITE, 0.95);
+        mark.strokeRoundedRect(x - swatch / 2 - 3, y - swatch / 2 - 3, swatch + 6, swatch + 6, 9);
+        this.content.add(mark);
+      }
+    });
+
+    return y + 60;
+  }
+
+  /** Draws one labelled row of named cosmetic chips and returns the next y. */
+  private renderCosmeticRow(
+    label: string,
+    items: CosmeticDefinition[],
+    y: number,
+    onPick: (item: CosmeticDefinition) => void,
+  ): number {
+    this.rowLabel(label, y);
 
     const chipWidth = 96;
     const gap = 8;
-    const startX = SPACING.xl + 210;
+    const startX = SPACING.xl + 220;
 
     items.forEach((item, index) => {
       const x = startX + index * (chipWidth + gap);

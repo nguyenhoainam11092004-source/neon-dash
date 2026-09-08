@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { RADIUS, SPACING, TYPE, UI_COLORS, hex, track } from './Theme';
 import { FONT_STACK } from './Theme';
+import { containerContains, containerHitArea } from './HitArea';
 
 export interface ButtonOptions {
   label: string;
@@ -31,6 +32,9 @@ export class Button extends Phaser.GameObjects.Container {
   private readonly text: Phaser.GameObjects.Text;
   private readonly opts: Required<Omit<ButtonOptions, 'onClick' | 'onHold'>> &
     Pick<ButtonOptions, 'onClick' | 'onHold'>;
+  /** Same rectangle handed to `setInteractive`, kept so a click can be
+   * verified independently of Phaser's per-object hover bookkeeping. */
+  private readonly hitArea: Phaser.Geom.Rectangle;
 
   private hovered = false;
   private pressed = false;
@@ -69,15 +73,17 @@ export class Button extends Phaser.GameObjects.Container {
     this.add(this.text);
 
     this.setSize(this.opts.width, this.opts.height);
-    this.setInteractive(
-      new Phaser.Geom.Rectangle(
-        -this.opts.width / 2,
-        -this.opts.height / 2,
-        this.opts.width,
-        this.opts.height,
-      ),
-      Phaser.Geom.Rectangle.Contains,
+    // The button draws itself centred on its own position, so its hit area is
+    // the same centred rectangle — expressed in drawing coordinates and
+    // converted for Phaser by containerHitArea.
+    this.hitArea = containerHitArea(
+      this,
+      -this.opts.width / 2,
+      -this.opts.height / 2,
+      this.opts.width,
+      this.opts.height,
     );
+    this.setInteractive(this.hitArea, Phaser.Geom.Rectangle.Contains);
 
     this.attachHandlers();
     this.redraw();
@@ -89,44 +95,71 @@ export class Button extends Phaser.GameObjects.Container {
       if (!this.enabledState) return;
       this.hovered = true;
       this.redraw();
-      this.scene.tweens.add({ targets: this, scale: 1.04, duration: 110, ease: 'Quad.easeOut' });
+      this.tweenScale(1.04, 110, 'Quad.easeOut');
     });
 
     this.on(Phaser.Input.Events.GAMEOBJECT_POINTER_OUT, () => {
       this.hovered = false;
-      this.pressed = false;
       this.stopHold();
       this.redraw();
-      this.scene.tweens.add({ targets: this, scale: 1, duration: 110, ease: 'Quad.easeOut' });
+      this.tweenScale(1, 110, 'Quad.easeOut');
     });
 
     this.on(Phaser.Input.Events.GAMEOBJECT_POINTER_DOWN, () => {
       if (!this.enabledState) return;
       this.pressed = true;
       this.redraw();
-      this.scene.tweens.add({ targets: this, scale: 0.97, duration: 70, ease: 'Quad.easeOut' });
+      this.tweenScale(0.97, 70, 'Quad.easeOut');
       if (this.opts.onHold) this.startHold();
     });
 
-    this.on(Phaser.Input.Events.GAMEOBJECT_POINTER_UP, () => {
-      if (!this.enabledState) return;
-      const wasPressed = this.pressed;
+    // The click itself is decided here, on the scene-wide pointerup, with our
+    // own hit test against `pointer.x/y` — deliberately NOT via
+    // GAMEOBJECT_POINTER_UP. Phaser only fires that per-object event when its
+    // OWN fresh hit test (run once per raw DOM event) still lists this button
+    // in `currentlyOver` at that exact instant; a `mousedown` immediately
+    // followed by a sub-pixel `mousemove` (ordinary mouse jitter during a
+    // real click, and exactly what a fast/scripted click produces) can make
+    // Phaser emit GAMEOBJECT_POINTER_OUT for that intermediate move and then
+    // never re-emit GAMEOBJECT_POINTER_UP on release, silently dropping the
+    // click even though the pointer visibly ends over the button. The
+    // scene-level POINTER_UP event, by contrast, always fires on every
+    // release inside the canvas (see InputPlugin#processUpEvents), so
+    // checking our own geometry against it can't be defeated by that
+    // per-object staleness.
+    const onPointerUp = (pointer: Phaser.Input.Pointer): void => {
+      if (!this.pressed) return;
       this.pressed = false;
       this.stopHold();
+      const stillOver = this.containsPoint(pointer.x, pointer.y);
+      this.hovered = stillOver;
       this.redraw();
-      this.scene.tweens.add({
-        targets: this,
-        scale: this.hovered ? 1.04 : 1,
-        duration: 110,
-        ease: 'Back.easeOut',
-      });
-      // Only a press and release on the same button counts as a click; dragging
-      // off and back on should not fire the action.
-      if (wasPressed) this.opts.onClick?.();
-    });
+      this.tweenScale(stillOver ? 1.04 : 1, 110, 'Back.easeOut');
+      if (this.enabledState && stillOver) this.opts.onClick?.();
+    };
+    this.scene.input.on(Phaser.Input.Events.POINTER_UP, onPointerUp);
+    this.scene.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, onPointerUp);
 
     // A container is not automatically cleaned up when its scene shuts down.
-    this.once(Phaser.GameObjects.Events.DESTROY, () => this.stopHold());
+    this.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.stopHold();
+      this.scene.input.off(Phaser.Input.Events.POINTER_UP, onPointerUp);
+      this.scene.input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, onPointerUp);
+    });
+  }
+
+  /** Tests a point given in scene/world space against this button's actual
+   * hit rectangle, the same way Phaser's own input plugin would. */
+  private containsPoint(worldX: number, worldY: number): boolean {
+    const local = this.getWorldTransformMatrix().applyInverse(worldX, worldY);
+    return containerContains(this, this.hitArea, local.x, local.y);
+  }
+
+  /** Kills any in-flight scale tween first so rapid hover/press toggling snaps
+   * to the latest intent instead of stacking competing tweens on `scale`. */
+  private tweenScale(scale: number, duration: number, ease: string): void {
+    this.scene.tweens.killTweensOf(this);
+    this.scene.tweens.add({ targets: this, scale, duration, ease });
   }
 
   private startHold(): void {

@@ -89,7 +89,15 @@ export class NeonBackground {
     }
   }
 
-  /** Slow drifting specks that give the parallax something to act on. */
+  /**
+   * Slow drifting specks that give the parallax something to act on.
+   *
+   * Kept small and faint on purpose. TEX.PARTICLE is a soft radial dot, so a
+   * mote much wider than about ten pixels — or much brighter than a whisper —
+   * stops reading as ambient dust and turns into a distinct circular blob
+   * hanging in mid-air, which players notice as a rendering fault rather than
+   * as atmosphere.
+   */
   private createMotes(): void {
     const random = createRandom(this.opts.seed);
     const count = 26;
@@ -98,8 +106,8 @@ export class NeonBackground {
       const mote = this.scene.add
         .image(random() * VIEW.WIDTH, random() * VIEW.HEIGHT, TEX.PARTICLE)
         .setTint(i % 3 === 0 ? PALETTE.CYAN : this.opts.accent)
-        .setAlpha(0.1 + random() * 0.25)
-        .setScale(0.2 + random() * 0.55)
+        .setAlpha(0.05 + random() * 0.11)
+        .setScale(0.1 + random() * 0.18)
         .setBlendMode(Phaser.BlendModes.ADD);
 
       this.container.add(mote);

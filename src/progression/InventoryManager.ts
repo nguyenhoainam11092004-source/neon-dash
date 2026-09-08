@@ -31,18 +31,36 @@ export interface InventoryEvents extends Record<string, unknown> {
  * so a player who buys nothing is never at a disadvantage.
  */
 export const COSMETICS: readonly CosmeticDefinition[] = [
+  // Shapes. The id suffix is the PlayerShapes entry that draws it, so adding a
+  // shape means one entry there and one line here — nothing else.
   { id: 'skin:classic', kind: 'skin', name: 'Classic', price: 0 },
-  { id: 'skin:outline', kind: 'skin', name: 'Outline', price: 40 },
-  { id: 'skin:solid', kind: 'skin', name: 'Solid', price: 40 },
-  { id: 'skin:prism', kind: 'skin', name: 'Prism', price: 120, unlockedBy: 'five_down' },
+  { id: 'skin:circle', kind: 'skin', name: 'Orb', price: 0 },
+  { id: 'skin:triangle', kind: 'skin', name: 'Wedge', price: 15 },
+  { id: 'skin:diamond', kind: 'skin', name: 'Diamond', price: 20 },
+  { id: 'skin:pentagon', kind: 'skin', name: 'Pentagon', price: 25 },
+  { id: 'skin:hexagon', kind: 'skin', name: 'Hexagon', price: 30 },
+  { id: 'skin:cross', kind: 'skin', name: 'Cross', price: 35 },
+  { id: 'skin:arrow', kind: 'skin', name: 'Arrow', price: 40 },
+  { id: 'skin:ring', kind: 'skin', name: 'Ring', price: 50 },
+  { id: 'skin:heart', kind: 'skin', name: 'Heart', price: 60 },
+  { id: 'skin:star', kind: 'skin', name: 'Star', price: 80, unlockedBy: 'five_down' },
+  { id: 'skin:burst', kind: 'skin', name: 'Burst', price: 110, unlockedBy: 'relentless' },
 
   { id: 'color:cyan', kind: 'color', name: 'Cyan', price: 0, value: '#2ff3f0' },
   { id: 'color:magenta', kind: 'color', name: 'Magenta', price: 0, value: '#ff2fa8' },
+  { id: 'color:white', kind: 'color', name: 'White', price: 0, value: '#f2f6ff' },
   { id: 'color:violet', kind: 'color', name: 'Violet', price: 20, value: '#9b5cff' },
   { id: 'color:lime', kind: 'color', name: 'Lime', price: 20, value: '#8bff3d' },
   { id: 'color:amber', kind: 'color', name: 'Amber', price: 25, value: '#ffc93d' },
   { id: 'color:coral', kind: 'color', name: 'Coral', price: 25, value: '#ff5c5c' },
-  { id: 'color:white', kind: 'color', name: 'White', price: 35, value: '#f2f6ff' },
+  { id: 'color:orange', kind: 'color', name: 'Orange', price: 25, value: '#ff8a3d' },
+  { id: 'color:rose', kind: 'color', name: 'Rose', price: 30, value: '#ff7ad9' },
+  { id: 'color:mint', kind: 'color', name: 'Mint', price: 30, value: '#5cffc2' },
+  { id: 'color:sky', kind: 'color', name: 'Sky', price: 30, value: '#4db5ff' },
+  { id: 'color:indigo', kind: 'color', name: 'Indigo', price: 35, value: '#6a5cff' },
+  { id: 'color:gold', kind: 'color', name: 'Gold', price: 45, value: '#ffd875' },
+  { id: 'color:ember', kind: 'color', name: 'Ember', price: 45, value: '#ff3d5c' },
+  { id: 'color:slate', kind: 'color', name: 'Slate', price: 40, value: '#8f9bc7' },
   {
     id: 'color:void',
     kind: 'color',
