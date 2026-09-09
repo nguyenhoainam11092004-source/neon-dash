@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { createGameConfig } from '@/config/gameConfig';
 import { SCENES } from '@/config/constants';
+import { authService } from '@/online/AuthService';
 import { installGlobalErrorHandlers, logger } from '@/utils/Logger';
 import { BootScene } from '@/scenes/BootScene';
 import { PreloadScene } from '@/scenes/PreloadScene';
@@ -52,6 +53,12 @@ function dismissSplash(): void {
 
 function start(): void {
   installGlobalErrorHandlers();
+
+  // Fire-and-forget: this both restores an existing session and consumes the
+  // access token Google's redirect leaves in the URL, so it must start before
+  // any scene that might show sign-in state, but nothing here needs to block
+  // the game's own boot on a network round trip.
+  void authService.init();
 
   const root = document.getElementById(ROOT_ID);
   if (!root) {

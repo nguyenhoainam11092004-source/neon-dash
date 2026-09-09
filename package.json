@@ -22,6 +22,7 @@
     "levels": "tsx scripts/generate-levels.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
     "phaser": "^3.90.0"
   },
   "devDependencies": {

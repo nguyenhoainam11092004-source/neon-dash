@@ -7,6 +7,7 @@ import { levelManager } from '@/levels/LevelManager';
 import { ProgressManager } from '@/progression/ProgressManager';
 import type { CosmeticDefinition } from '@/progression/InventoryManager';
 import { getPlayerShape } from '@/player/PlayerShapes';
+import { authService } from '@/online/AuthService';
 import type { SaveManager } from '@/save/SaveManager';
 import { Button } from '@/ui/Button';
 import { ProgressBar } from '@/ui/ProgressBar';
@@ -35,6 +36,9 @@ export class ProfileScene extends Phaser.Scene {
   private content!: Phaser.GameObjects.Container;
   private lastTime = 0;
 
+  private accountControl?: Phaser.GameObjects.Container;
+  private unsubscribeAuth?: () => void;
+
   constructor() {
     super({ key: SCENES.PROFILE });
   }
@@ -62,6 +66,19 @@ export class ProfileScene extends Phaser.Scene {
     this.buildHeader();
     this.buildTabs();
     this.renderTab();
+
+    // The redirect back from Google lands on whatever scene happens to be
+    // active, so the account row has to react to sign-in/out rather than
+    // only reading the state once at create().
+    const onSignedIn = (): void => this.rebuildAccountControl();
+    const onSignedOut = (): void => this.rebuildAccountControl();
+    authService.events.on('signed-in', onSignedIn);
+    authService.events.on('signed-out', onSignedOut);
+    this.unsubscribeAuth = () => {
+      authService.events.off('signed-in', onSignedIn);
+      authService.events.off('signed-out', onSignedOut);
+    };
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.unsubscribeAuth?.());
 
     this.input.keyboard?.on('keydown-ESC', () => this.go(SCENES.MAIN_MENU));
   }
@@ -95,6 +112,73 @@ export class ProfileScene extends Phaser.Scene {
       fontSize: 13,
       onClick: () => this.go(SCENES.MAIN_MENU),
     });
+
+    this.rebuildAccountControl();
+  }
+
+  /**
+   * Sign-in status, drawn as a single small control right of the coin count.
+   *
+   * Rebuilt wholesale rather than updated in place: it flips between two
+   * different shapes (a single "sign in" button vs. a name label plus a
+   * "sign out" button), so recreating it is simpler than reconciling one
+   * against the other.
+   */
+  private rebuildAccountControl(): void {
+    this.accountControl?.destroy();
+    const user = authService.currentUser;
+    // Clear of the BACK button (centred at VIEW.WIDTH - SPACING.xl - 60,
+    // width 120, so its left edge is VIEW.WIDTH - SPACING.xl - 120) with
+    // room to spare, regardless of which of the two shapes below is drawn.
+    const x = VIEW.WIDTH - SPACING.xl - 250;
+    const y = 46;
+
+    if (!user) {
+      const button = new Button(this, x, y, {
+        label: authService.isConfigured ? 'SIGN IN WITH GOOGLE' : 'SIGN-IN UNAVAILABLE',
+        width: 220,
+        height: 40,
+        color: PALETTE.CYAN,
+        variant: 'ghost',
+        fontSize: 12,
+        enabled: authService.isConfigured,
+        onClick: () => void this.signIn(),
+      });
+      this.accountControl = this.add.container(0, 0, [button]);
+      return;
+    }
+
+    const container = this.add.container(0, 0);
+    const name = this.add
+      .text(x - 90, y, user.name, {
+        fontFamily: FONT_STACK,
+        fontSize: `${TYPE.caption.size}px`,
+        fontStyle: '700',
+        color: hex(UI_COLORS.text),
+      })
+      .setOrigin(1, 0.5);
+    const signOut = new Button(this, x + 40, y, {
+      label: 'SIGN OUT',
+      width: 120,
+      height: 36,
+      color: PALETTE.GREY,
+      fontSize: 11,
+      onClick: () => void this.signOut(),
+    });
+    container.add([name, signOut]);
+    this.accountControl = container;
+  }
+
+  private async signIn(): Promise<void> {
+    const result = await authService.signInWithGoogle();
+    // A successful call navigates the page away to Google, so there is
+    // nothing left to update here; only the failure path returns to code.
+    if (!result.ok) this.toast.show(result.error ?? 'Sign-in failed', 'error');
+  }
+
+  private async signOut(): Promise<void> {
+    await authService.signOut();
+    this.toast.show('Signed out', 'success');
   }
 
   private buildTabs(): void {

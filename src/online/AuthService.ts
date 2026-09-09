@@ -1,104 +1,117 @@
-import type { ApiClient, ApiResult } from './ApiClient';
-import { apiClient } from './ApiClient';
-import { sanitizeText } from '@/utils/ValidationUtils';
+import type { Session, User } from '@supabase/supabase-js';
+import { getSupabaseClient, isSupabaseConfigured } from './supabaseClient';
+import { EventBus } from '@/utils/EventBus';
+import { logger } from '@/utils/Logger';
 
 export interface AuthUser {
   id: string;
-  username: string;
-  createdAt: string;
+  email: string | null;
+  /** Display name from the identity provider; falls back to the email or id. */
+  name: string;
+  avatarUrl: string | null;
 }
 
-export interface AuthSession {
-  user: AuthUser;
-  token: string;
-  /** Unix seconds at which the token stops being accepted. */
-  expiresAt: number;
+export interface AuthEvents extends Record<string, unknown> {
+  'signed-in': { user: AuthUser };
+  'signed-out': Record<string, never>;
+}
+
+function toAuthUser(user: User): AuthUser {
+  const meta = user.user_metadata as Record<string, unknown> | undefined;
+  const name =
+    (typeof meta?.full_name === 'string' && meta.full_name) ||
+    (typeof meta?.name === 'string' && meta.name) ||
+    user.email ||
+    user.id;
+  const avatarUrl =
+    (typeof meta?.avatar_url === 'string' && meta.avatar_url) ||
+    (typeof meta?.picture === 'string' && meta.picture) ||
+    null;
+
+  return { id: user.id, email: user.email ?? null, name, avatarUrl };
 }
 
 /**
- * Account handling for the online features.
+ * Account state, backed by Supabase Auth.
  *
- * The client's role is narrow on purpose: collect credentials, hand them to the
- * server, and hold the returned token in memory. It never hashes a password
- * itself, never decides whether a session is valid, and never stores a token
- * where another script could read it. Those are all server responsibilities,
- * and a client that takes them on is a client that can be lied to.
+ * Google is the only sign-in method wired up: the game asks Supabase to run
+ * the OAuth handshake and only ever reads the session it hands back, so
+ * NEON DASH never sees, stores, or validates a credential itself. `init()`
+ * must run once at boot — it both restores an existing session (a page
+ * reload otherwise looks signed-out for a moment) and consumes the
+ * `access_token` Google's redirect leaves in the URL fragment after login.
  */
 export class AuthService {
-  private readonly api: ApiClient;
-  private session: AuthSession | null = null;
+  readonly events = new EventBus<AuthEvents>();
 
-  constructor(api: ApiClient = apiClient) {
-    this.api = api;
-  }
+  private user: AuthUser | null = null;
+  private ready = false;
 
   get currentUser(): AuthUser | null {
-    return this.session?.user ?? null;
+    return this.user;
   }
 
   get isSignedIn(): boolean {
-    if (!this.session) return false;
-    // A token past its expiry is not worth sending; treat it as signed out.
-    return this.session.expiresAt * 1000 > Date.now();
+    return this.user !== null;
   }
 
-  async register(username: string, password: string): Promise<ApiResult<AuthSession>> {
-    const clean = sanitizeText(username, 24);
-    if (clean.length < 3) {
-      return {
-        ok: false,
-        error: { status: 400, message: 'Username must be at least 3 characters', transient: false },
-      };
-    }
-    if (password.length < 8) {
-      return {
-        ok: false,
-        error: { status: 400, message: 'Password must be at least 8 characters', transient: false },
-      };
-    }
+  get isConfigured(): boolean {
+    return isSupabaseConfigured();
+  }
 
-    const result = await this.api.post<AuthSession>('/auth/register', {
-      username: clean,
-      password,
+  /** Restores any existing session and starts listening for sign-in/out. Call once at boot. */
+  async init(): Promise<void> {
+    if (this.ready) return;
+    this.ready = true;
+
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    const { data, error } = await client.auth.getSession();
+    if (error) logger.warn('AuthService', 'Could not restore session', error);
+    this.applySession(data.session ?? null, false);
+
+    client.auth.onAuthStateChange((_event, session) => {
+      this.applySession(session, true);
     });
-    if (result.ok) this.adopt(result.data);
-    return result;
   }
 
-  async login(username: string, password: string): Promise<ApiResult<AuthSession>> {
-    const result = await this.api.post<AuthSession>('/auth/login', {
-      username: sanitizeText(username, 24),
-      password,
+  private applySession(session: Session | null, notify: boolean): void {
+    const next = session ? toAuthUser(session.user) : null;
+    const wasSignedIn = this.user !== null;
+    this.user = next;
+
+    if (!notify) return;
+    if (next && !wasSignedIn) this.events.emit('signed-in', { user: next });
+    else if (!next && wasSignedIn) this.events.emit('signed-out', {});
+  }
+
+  /**
+   * Starts the Google sign-in flow.
+   *
+   * This navigates the page away to Google's consent screen — there is no
+   * result to return here. The redirect back is what `init()`'s
+   * `onAuthStateChange` subscription picks up.
+   */
+  async signInWithGoogle(): Promise<{ ok: boolean; error?: string }> {
+    const client = getSupabaseClient();
+    if (!client) {
+      return { ok: false, error: 'Online sign-in is not configured for this build.' };
+    }
+
+    const { error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + window.location.pathname },
     });
-    if (result.ok) this.adopt(result.data);
-    return result;
+
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
   }
 
-  /** Tells the server to revoke the token, then forgets it locally either way. */
-  async logout(): Promise<void> {
-    if (this.session) {
-      await this.api.post('/auth/logout', {});
-    }
-    this.session = null;
-    this.api.setToken(null);
-  }
-
-  /** Exchanges a nearly expired token for a fresh one. */
-  async refresh(): Promise<boolean> {
-    if (!this.session) return false;
-    const result = await this.api.post<AuthSession>('/auth/refresh', {});
-    if (!result.ok) {
-      this.session = null;
-      this.api.setToken(null);
-      return false;
-    }
-    this.adopt(result.data);
-    return true;
-  }
-
-  private adopt(session: AuthSession): void {
-    this.session = session;
-    this.api.setToken(session.token);
+  async signOut(): Promise<void> {
+    const client = getSupabaseClient();
+    if (!client) return;
+    await client.auth.signOut();
   }
 }
 
