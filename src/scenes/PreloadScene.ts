@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { PALETTE, SCENES, VIEW } from '@/config/constants';
 import { generateCoreTextures } from '@/effects/TextureFactory';
+import { cloudSaveService } from '@/online/CloudSaveService';
 import { saveManager } from '@/save/SaveManager';
 import { ProgressBar } from '@/ui/ProgressBar';
 import { FONT_STACK, TYPE, UI_COLORS, hex, track } from '@/ui/Theme';
@@ -145,6 +146,11 @@ export class PreloadScene extends Phaser.Scene {
     this.registry.set('settings', data.settings);
 
     if (data.settings.showFps) this.registry.set('showFps', true);
+
+    // Must come after load(): reconciling a cloud save replaces the in-memory
+    // document, and starting this any earlier would let load() overwrite that
+    // replacement the moment it ran.
+    cloudSaveService.init(saveManager);
   }
 
   private prepareAudio(): void {
