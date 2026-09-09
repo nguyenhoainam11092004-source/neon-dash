@@ -25,10 +25,22 @@ function readUpdatedAt(raw: unknown): number {
  * autosave timer, and syncing stops immediately on sign-out rather than
  * lingering and pushing a signed-out player's local data under someone else's
  * account.
+ *
+ * Pushes are optimistically-concurrent: each one is conditioned on the row's
+ * `updated_at` still being whatever we last saw. Two tabs (or two devices)
+ * signed into the same account can otherwise race — a slower tab's stale
+ * write landing *after* a faster tab's newer one would silently roll the
+ * cloud save backward, since a plain upsert has no idea it's clobbering
+ * something newer. A version mismatch means someone else wrote first, which
+ * is resolved the same way the initial sign-in reconciliation is: newer
+ * `updatedAt` (the one embedded in the JSON document itself, not the row's
+ * own timestamp) wins.
  */
 export class CloudSaveService {
   private saveManager?: SaveManager;
   private unsubscribeWrite?: () => void;
+  /** The row's `updated_at` as of our last successful read or write; `null` until we know one. */
+  private cloudRowVersion: string | null = null;
 
   /** Wires the service to the save manager and starts watching sign-in state. */
   init(saveManager: SaveManager): void {
@@ -48,9 +60,9 @@ export class CloudSaveService {
     const user = authService.currentUser;
     if (!client || !user || !this.saveManager) return;
 
-    const { data, error } = await client
+    const { data: row, error } = await client
       .from(TABLE)
-      .select('data')
+      .select('data, updated_at')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -59,7 +71,8 @@ export class CloudSaveService {
       return;
     }
 
-    const cloud = data?.data ?? null;
+    this.cloudRowVersion = row?.updated_at ?? null;
+    const cloud = row?.data ?? null;
     const local = this.saveManager.export();
 
     if (cloud && readUpdatedAt(cloud) > readUpdatedAt(local)) {
@@ -85,12 +98,80 @@ export class CloudSaveService {
     this.unsubscribeWrite = undefined;
   }
 
-  private async push(userId: string, data: unknown): Promise<void> {
+  /**
+   * Writes `data`, retrying once if another writer beat us to it.
+   *
+   * `attempt` bounds the retry to a single round: a second collision within
+   * the same handful of milliseconds is rare enough that logging and letting
+   * the next `save:written` event try again is a better trade than looping.
+   */
+  private async push(userId: string, data: unknown, attempt = 0): Promise<void> {
     const client = getSupabaseClient();
     if (!client) return;
 
-    const { error } = await client.from(TABLE).upsert({ user_id: userId, data });
-    if (error) logger.warn('CloudSaveService', 'Could not push save to the cloud', error);
+    // No known row version yet (first sync for this account) — a plain
+    // upsert is safe because there is nothing existing to race against.
+    if (this.cloudRowVersion === null) {
+      const { data: rows, error } = await client
+        .from(TABLE)
+        .upsert({ user_id: userId, data })
+        .select('updated_at');
+      if (error) {
+        logger.warn('CloudSaveService', 'Could not push save to the cloud', error);
+        return;
+      }
+      this.cloudRowVersion = rows?.[0]?.updated_at ?? this.cloudRowVersion;
+      return;
+    }
+
+    const { data: rows, error } = await client
+      .from(TABLE)
+      .update({ data })
+      .eq('user_id', userId)
+      .eq('updated_at', this.cloudRowVersion)
+      .select('updated_at');
+
+    if (error) {
+      logger.warn('CloudSaveService', 'Could not push save to the cloud', error);
+      return;
+    }
+
+    if (rows && rows.length > 0) {
+      this.cloudRowVersion = rows[0]?.updated_at ?? this.cloudRowVersion;
+      return;
+    }
+
+    // Zero rows matched: the row moved since we last read it. Find out who
+    // actually has the newer copy rather than assuming either side is right.
+    if (attempt > 0) {
+      logger.warn('CloudSaveService', 'Save push conflicted twice in a row; will retry later');
+      return;
+    }
+
+    const { data: fresh, error: fetchError } = await client
+      .from(TABLE)
+      .select('data, updated_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (fetchError || !fresh) {
+      logger.warn('CloudSaveService', 'Could not resolve a save push conflict', fetchError);
+      return;
+    }
+
+    this.cloudRowVersion = fresh.updated_at;
+
+    if (readUpdatedAt(fresh.data) >= readUpdatedAt(data)) {
+      // The row that beat us is newer than (or tied with) what we were about
+      // to write. Adopting it — rather than forcing our stale copy back in —
+      // is what actually stops progress from rolling backward.
+      logger.info('CloudSaveService', 'Another session pushed a newer save; adopting it');
+      this.saveManager?.import(fresh.data);
+      return;
+    }
+
+    // Our copy is genuinely newer; retry now that the version stamp is current.
+    await this.push(userId, data, attempt + 1);
   }
 }
 

@@ -26,9 +26,24 @@ create policy "Players can insert their own save"
   on public.saves for insert
   with check (auth.uid() = user_id);
 
+-- WITH CHECK is spelled out explicitly rather than left to fall back to
+-- USING (Postgres's documented behaviour when an UPDATE policy omits it,
+-- which is already equivalent to this) — the fallback is correct but easy to
+-- mistake for "no check on the new row" at a glance, so the explicit form is
+-- what a reviewer should actually see here.
 create policy "Players can update their own save"
   on public.saves for update
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- Nothing else limits how large a single save can grow (a level editor lets
+-- a player accumulate arbitrarily many created levels), so a buggy or
+-- malicious client could otherwise inflate one row indefinitely. 500 KB is
+-- comfortably above what a real save reaches — the profile screen alone
+-- reported ordinary saves in the tens of KB — while still catching runaway
+-- growth.
+alter table public.saves
+  add constraint saves_data_size_limit check (pg_column_size(data) < 500000);
 
 -- Keeps updated_at accurate for anyone querying the table directly (the
 -- client itself compares the updatedAt field already inside the JSON, not
