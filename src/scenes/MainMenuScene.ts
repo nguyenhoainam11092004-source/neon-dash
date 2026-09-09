@@ -2,8 +2,10 @@ import Phaser from 'phaser';
 import { PALETTE, SCENES, VIEW } from '@/config/constants';
 import { NeonBackground } from '@/effects/NeonBackground';
 import { TEX } from '@/effects/TextureFactory';
+import { AccountBadge } from '@/ui/AccountBadge';
 import { Button } from '@/ui/Button';
 import { FONT_STACK, SPACING, TYPE, UI_COLORS, hex, track } from '@/ui/Theme';
+import { Toast } from '@/ui/Toast';
 import type { SaveManager } from '@/save/SaveManager';
 
 /**
@@ -15,6 +17,7 @@ import type { SaveManager } from '@/save/SaveManager';
 export class MainMenuScene extends Phaser.Scene {
   private background!: NeonBackground;
   private mark!: Phaser.GameObjects.Container;
+  private toast!: Toast;
   private lastTime = 0;
 
   constructor() {
@@ -35,9 +38,12 @@ export class MainMenuScene extends Phaser.Scene {
       seed: 20260908,
     });
 
+    this.toast = new Toast(this);
+
     this.buildWordmark();
     this.buildMenu();
     this.buildFooter(save);
+    this.buildAccountBadge();
 
     // The browser blocks audio until a gesture; the first click anywhere is the
     // right moment to unlock it, and the menu is where that click happens.
@@ -150,6 +156,12 @@ export class MainMenuScene extends Phaser.Scene {
     });
   }
 
+  private buildAccountBadge(): void {
+    new AccountBadge(this, VIEW.WIDTH - SPACING.lg, 34, {
+      onError: (message) => this.toast.show(message, 'error'),
+    });
+  }
+
   private buildFooter(save: SaveManager | undefined): void {
     const stats = save?.current.stats;
     const completed = stats?.levelsCompleted ?? 0;
@@ -190,6 +202,7 @@ export class MainMenuScene extends Phaser.Scene {
     const dt = this.lastTime === 0 ? 0 : (time - this.lastTime) / 1000;
     this.lastTime = time;
     this.background.update(dt);
+    this.toast.update(dt);
 
     // A slow drift keeps the title alive without a tween fighting the layout.
     this.mark.y = 108 + Math.sin(time / 900) * 4;
